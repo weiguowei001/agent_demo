@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -36,17 +38,33 @@ def get_weather(city: str):
 
 from rag import RAG
 
-rag = RAG("../speak_with_chatgpt")  # 你的代码/文档目录
+rag = RAG("./data")  # 你的代码/文档目录
 
 def rag_search(query: str):
     result = rag.search(query)
     return result[:2000]  # 限制长度
 
+
+def save_document(filename: str, content: str) -> str:
+    """将文本保存到项目内 data/exports（禁止写出该目录之外）。"""
+    root = (Path(__file__).resolve().parent / "data" / "exports").resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    target = (root / filename).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError:
+        return "保存失败：路径必须在项目目录 data/exports 下"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return f"已保存到 {target}"
+
+
 TOOLS = {
     "search_web": search_web,
     "fetch_webpage": fetch_webpage,
     "get_weather": get_weather,
-    "rag_search" : rag_search,
+    "rag_search": rag_search,
+    "save_document": save_document,
 }
 
 TOOL_SCHEMAS = [
@@ -96,7 +114,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "rag_search",
-            "description": "从本地知识库/代码库检索。当问题与项目文件、源码、实现方式相关时应优先使用。",
+            "description": "从本地知识库检索。当问题与教你说话时应优先使用。",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -105,5 +123,26 @@ TOOL_SCHEMAS = [
                 "required": ["query"]
             }
         }
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_document",
+            "description": "将文本内容保存为本地文档（UTF-8）。文件会写入项目下的 data/exports 目录，文件名可带子路径如 notes/备忘.txt。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filename": {
+                        "type": "string",
+                        "description": "相对路径文件名，例如 report.md 或 subdir/out.txt",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "要写入文件的完整文本",
+                    },
+                },
+                "required": ["filename", "content"],
+            },
+        },
+    },
 ]
