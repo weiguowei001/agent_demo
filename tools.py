@@ -1,24 +1,83 @@
+import requests
+from bs4 import BeautifulSoup
+
+
+def search_web(query: str):
+    url = "https://duckduckgo.com/html/"
+    params = {"q": query}
+
+    response = requests.post(url, data=params)
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    results = []
+    for a in soup.select(".result__a")[:5]:
+        title = a.get_text()
+        link = a.get("href")
+        results.append(f"{title} - {link}")
+
+    return "\n".join(results)
+
+def fetch_webpage(url: str):
+    try:
+        res = requests.get(url, timeout=5)
+        soup = BeautifulSoup(res.text, "html.parser")
+
+        # 去掉script/style
+        for tag in soup(["script", "style"]):
+            tag.decompose()
+
+        text = soup.get_text(separator="\n")
+        return text[:2000]  # 防止太长
+    except Exception as e:
+        return f"网页读取失败: {str(e)}"
+
 def get_weather(city: str):
-    # 先写死，后面可以接真实API
-    return f"{city} 今天 25°C，晴天"
+    return f"{city} 当前天气：25°C，晴"
 
 TOOLS = {
-    "get_weather": get_weather
+    "search_web": search_web,
+    "fetch_webpage": fetch_webpage,
+    "get_weather": get_weather,
 }
 
 TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "get_weather",
-            "description": "获取城市天气",
+            "name": "search_web",
+            "description": "搜索互联网信息",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "城市名"
-                    }
+                    "query": {"type": "string"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_webpage",
+            "description": "获取网页内容",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string"}
+                },
+                "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "获取天气",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {"type": "string"}
                 },
                 "required": ["city"]
             }
