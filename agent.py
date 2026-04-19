@@ -1,10 +1,13 @@
 import json
 from llm import call_llm
+from prompts import SYSTEM_PROMPT
 from tools import TOOLS, TOOL_SCHEMAS
+
 
 class Agent:
     def __init__(self, memory):
         self.memory = memory
+        self.memory.ensure_system_prompt(SYSTEM_PROMPT)
 
     def run(self, user_input):
         self.memory.add("user", user_input)

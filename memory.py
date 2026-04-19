@@ -2,6 +2,11 @@ class Memory:
     def __init__(self):
         self.history = []
 
+    def ensure_system_prompt(self, content: str):
+        if self.history and self.history[0].get("role") == "system":
+            return
+        self.history.insert(0, {"role": "system", "content": content})
+
     def add(self, role, content):
         if role == "tool":
             body = content["content"]
