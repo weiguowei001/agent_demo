@@ -1,11 +1,12 @@
+import os
 import requests
 
-API_KEY = ""
 BASE_URL = "https://api.deepseek.com/v1/chat/completions"
 
 def call_llm(messages, tools=None):
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
     headers = {
-        "Authorization": f"Bearer {API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
