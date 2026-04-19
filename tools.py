@@ -5,3 +5,23 @@ def get_weather(city: str):
 TOOLS = {
     "get_weather": get_weather
 }
+
+TOOL_SCHEMAS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "获取城市天气",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "城市名"
+                    }
+                },
+                "required": ["city"]
+            }
+        }
+    }
+]
