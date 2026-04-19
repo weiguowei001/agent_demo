@@ -1,25 +1,6 @@
 import json
 from llm import call_llm
-from tools import TOOLS
-
-SYSTEM_PROMPT = """
-你是一个AI Agent，可以使用工具解决问题。
-
-你必须使用以下JSON格式回答：
-
-如果需要调用工具：
-{
-  "action": "tool",
-  "tool_name": "工具名",
-  "args": {参数}
-}
-
-如果直接回答：
-{
-  "action": "final",
-  "answer": "你的回答"
-}
-"""
+from tools import TOOLS, TOOL_SCHEMAS
 
 class Agent:
     def __init__(self, memory):
@@ -28,35 +9,39 @@ class Agent:
     def run(self, user_input):
         self.memory.add("user", user_input)
 
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        messages += self.memory.get()
+        messages = self.memory.get()
 
-        response = call_llm(messages)
+        response = call_llm(messages, tools=TOOL_SCHEMAS)
+        msg = response["choices"][0]["message"]
 
-        try:
-            result = json.loads(response)
-        except:
-            return "解析失败：" + response
+        # 👉 关键：是否触发 tool_calls
+        if "tool_calls" in msg:
+            self.memory.add("assistant", msg)
 
-        if result["action"] == "tool":
-            tool_name = result["tool_name"]
-            args = result["args"]
+            for tool_call in msg["tool_calls"]:
+                tool_name = tool_call["function"]["name"]
+                args = json.loads(tool_call["function"]["arguments"])
+                tool_call_id = tool_call["id"]
 
-            if tool_name in TOOLS:
-                tool_result = TOOLS[tool_name](**args)
+                if tool_name in TOOLS:
+                    result = TOOLS[tool_name](**args)
 
-                # 把工具结果再喂给模型
-                self.memory.add("assistant", str(result))
-                self.memory.add("tool", tool_result)
+                    # 👉 关键：带 tool_call_id 回传
+                    self.memory.add("tool", {
+                        "tool_call_id": tool_call_id,
+                        "content": result
+                    })
 
-                return self.run("请根据工具结果给出最终答案")
-            else:
-                return f"未知工具：{tool_name}"
+                else:
+                    self.memory.add("tool", {
+                        "tool_call_id": tool_call_id,
+                        "content": f"未知工具 {tool_name}"
+                    })
 
-        elif result["action"] == "final":
-            answer = result["answer"]
-            self.memory.add("assistant", answer)
-            return answer
+            # 再让模型生成最终答案
+            return self.run("")
 
         else:
-            return "未知action"
+            content = msg["content"]
+            self.memory.add("assistant", content)
+            return content
