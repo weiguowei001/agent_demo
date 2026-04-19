@@ -34,10 +34,19 @@ def fetch_webpage(url: str):
 def get_weather(city: str):
     return f"{city} 当前天气：25°C，晴"
 
+from rag import RAG
+
+rag = RAG("../speak_with_chatgpt")  # 你的代码/文档目录
+
+def rag_search(query: str):
+    result = rag.search(query)
+    return result[:2000]  # 限制长度
+
 TOOLS = {
     "search_web": search_web,
     "fetch_webpage": fetch_webpage,
     "get_weather": get_weather,
+    "rag_search" : rag_search,
 }
 
 TOOL_SCHEMAS = [
@@ -80,6 +89,20 @@ TOOL_SCHEMAS = [
                     "city": {"type": "string"}
                 },
                 "required": ["city"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rag_search",
+            "description": "从本地知识库/代码库检索。当问题与项目文件、源码、实现方式相关时应优先使用。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"}
+                },
+                "required": ["query"]
             }
         }
     }
