@@ -20,5 +20,10 @@ def call_llm(messages, tools=None):
         data["tools"] = tools
         data["tool_choice"] = "auto"
 
+    print("Request:", data)
+
     response = requests.post(BASE_URL, headers=headers, json=data)
+
+    print("Response:", response.json())
+
     return response.json()

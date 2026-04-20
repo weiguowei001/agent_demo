@@ -1,43 +1,49 @@
 import json
 from llm import call_llm
+from tools import TOOLS
+from planner import Planner
 from prompts import SYSTEM_PROMPT
-from tools import TOOLS, TOOL_SCHEMAS
-
 
 class Agent:
     def __init__(self, memory):
         self.memory = memory
+        self.planner = Planner()
         self.memory.ensure_system_prompt(SYSTEM_PROMPT)
 
     def run(self, user_input):
+        if not user_input.strip():
+            return "请输入问题"
         self.memory.add("user", user_input)
 
-        while True:
-            messages = self.memory.get()
-            response = call_llm(messages, tools=TOOL_SCHEMAS)
-            msg = response["choices"][0]["message"]
-            print(msg)
-            # 👉 如果模型要调用工具
-            if "tool_calls" in msg:
-                self.memory.add("assistant", msg)
+        # 👉 Step 1：先做决策
+        plan = self.planner.plan(user_input)
 
-                for tool_call in msg["tool_calls"]:
-                    tool_name = tool_call["function"]["name"]
-                    args = json.loads(tool_call["function"]["arguments"])
-                    tool_call_id = tool_call["id"]
+        action = plan["action"]
+        args = plan.get("args", {})
 
-                    if tool_name in TOOLS:
-                        result = TOOLS[tool_name](**args)
-                    else:
-                        result = f"未知工具: {tool_name}"
+        # 👉 Step 2：执行
+        if action in TOOLS:
+            try:
+                result = TOOLS[action](**args)
+            except Exception as e:
+                result = str(e)
 
-                    self.memory.add("tool", {
-                        "tool_call_id": tool_call_id,
-                        "content": result
-                    })
+            # 👉 把工具结果写入上下文，再让 LLM 总结
+            self.memory.add("system", f"工具 {action} 返回结果：\n{result}")
+            return self.final_answer()
 
-            else:
-                # 👉 最终回答
-                content = msg["content"]
-                self.memory.add("assistant", content)
-                return content
+        elif action == "direct_answer":
+            return self.final_answer()
+
+        else:
+            # planner 兜底：未知 action 直接走回答链路
+            self.memory.add("system", f"planner 给出未知 action: {action}，已改为直接回答。")
+            return self.final_answer()
+
+    def final_answer(self):
+        messages = self.memory.get()
+        response = call_llm(messages)
+        answer = response["choices"][0]["message"]["content"]
+
+        self.memory.add("assistant", answer)
+        return answer
