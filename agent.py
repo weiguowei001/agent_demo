@@ -15,30 +15,32 @@ class Agent:
             return "请输入问题"
         self.memory.add("user", user_input)
 
-        # 👉 Step 1：先做决策
         plan = self.planner.plan(user_input)
 
-        action = plan["action"]
-        args = plan.get("args", {})
+        steps = plan.get("steps", [])
+        print("PLAN:", steps)
 
-        # 👉 Step 2：执行
-        if action in TOOLS:
-            try:
-                result = TOOLS[action](**args)
-            except Exception as e:
-                result = str(e)
+        context = ""
 
-            # 👉 把工具结果写入上下文，再让 LLM 总结
-            self.memory.add("system", f"工具 {action} 返回结果：\n{result}")
-            return self.final_answer()
+        # 👉 逐步执行
+        for step in steps:
+            action = step["action"]
+            args = step.get("args", {})
 
-        elif action == "direct_answer":
-            return self.final_answer()
+            print("EXEC:", action, args)
 
-        else:
-            # planner 兜底：未知 action 直接走回答链路
-            self.memory.add("system", f"planner 给出未知 action: {action}，已改为直接回答。")
-            return self.final_answer()
+            if action in TOOLS:
+                try:
+                    result = TOOLS[action](**args)
+                except Exception as e:
+                    result = str(e)
+
+                # 👉 累积上下文
+                context += f"\n[{action}结果]\n{result}\n"
+
+        self.memory.add("system", f"以下是工具执行结果：\n{context}")
+        # 👉 最终回答
+        return self.final_answer()
 
     def final_answer(self):
         messages = self.memory.get()
